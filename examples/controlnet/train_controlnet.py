@@ -39,6 +39,8 @@ from PIL import Image
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, PretrainedConfig
+from safetensors.torch import load_file
+from peft import LoraConfig, set_peft_model_state_dict 
 
 import diffusers
 from diffusers import (
@@ -264,6 +266,12 @@ def parse_args(input_args=None):
         default=None,
         help="Path to pretrained controlnet model or model identifier from huggingface.co/models."
         " If not specified controlnet weights are initialized from unet.",
+    )
+    parser.add_argument(
+        "--lora_path",
+        type=str,
+        default=None,
+        help="Path to the LoRA weights file (e.g., ./out/pytorch_lora_weights.safetensors)"
     )
     parser.add_argument(
         "--revision",
@@ -807,6 +815,17 @@ def main(args):
     unet = UNet2DConditionModel.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
     )
+    
+    if args.lora_path:
+        unet_lora_config = LoraConfig(
+        r=rank,
+        lora_alpha=rank,
+        init_lora_weights="gaussian",
+        target_modules=["to_k", "to_q", "to_v", "to_out.0"],
+        )
+        unet.add_adapter(unet_lora_config)
+        lora_weights = load_file(args.lora_path)
+        set_peft_model_state_dict(unet, lora_weights)
 
     if args.controlnet_model_name_or_path:
         logger.info("Loading existing controlnet weights")
