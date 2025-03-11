@@ -819,27 +819,31 @@ def main(args):
         args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant
     )
     unet = UNet2DConditionModel.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
+    args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
     )
     
-    if args.lora_path:
-        unet_lora_config = LoraConfig(
-        r=args.lora_rank,
-        lora_alpha=args.lora_rank,
-        init_lora_weights="gaussian",
-        target_modules=["to_k", "to_q", "to_v", "to_out.0"],
-        )
-        unet.add_adapter(unet_lora_config)
-        lora_weights = load_file(args.lora_path)
-        set_peft_model_state_dict(unet, lora_weights)
-
+    # Initialize ControlNet first, then add LoRA
     if args.controlnet_model_name_or_path:
         logger.info("Loading existing controlnet weights")
         controlnet = ControlNetModel.from_pretrained(args.controlnet_model_name_or_path)
     else:
         logger.info("Initializing controlnet weights from unet")
         controlnet = ControlNetModel.from_unet(unet)
-
+    
+    if args.lora_path:
+        unet_lora_config = LoraConfig(
+            r=args.lora_rank,
+            lora_alpha=args.lora_rank,
+            init_lora_weights="gaussian",
+            target_modules=["to_k", "to_q", "to_v", "to_out.0"],
+        )
+        unet.add_adapter(unet_lora_config)
+        lora_weights = load_file(args.lora_path)
+        set_peft_model_state_dict(unet, lora_weights)
+    
+        controlnet.add_adapter(unet_lora_config)
+        set_peft_model_state_dict(controlnet, lora_weights)
+    
     # Taken from [Sayak Paul's Diffusers PR #6511](https://github.com/huggingface/diffusers/pull/6511/files)
     def unwrap_model(model):
         model = accelerator.unwrap_model(model)
