@@ -274,6 +274,12 @@ def parse_args(input_args=None):
         help="Path to the LoRA weights file (e.g., ./out/pytorch_lora_weights.safetensors)"
     )
     parser.add_argument(
+        "--lora_rank",
+        type=int,
+        default=62,
+        help="LoRA rank"
+    )
+    parser.add_argument(
         "--revision",
         type=str,
         default=None,
@@ -818,8 +824,8 @@ def main(args):
     
     if args.lora_path:
         unet_lora_config = LoraConfig(
-        r=rank,
-        lora_alpha=rank,
+        r=args.lora_rank,
+        lora_alpha=args.lora_rank,
         init_lora_weights="gaussian",
         target_modules=["to_k", "to_q", "to_v", "to_out.0"],
         )
