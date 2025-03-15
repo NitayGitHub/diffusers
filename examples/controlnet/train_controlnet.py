@@ -627,6 +627,7 @@ def make_train_dataset(args, tokenizer, accelerator):
             args.dataset_config_name,
             cache_dir=args.cache_dir,
             data_dir=args.train_data_dir,
+            trust_remote_code=True
         )
     else:
         if args.train_data_dir is not None:
