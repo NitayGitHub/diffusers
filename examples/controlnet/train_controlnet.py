@@ -1151,6 +1151,7 @@ def main(args):
                         logger.info(f"Saved state to {save_path}")
 
                     if args.validation_prompt is not None and global_step % args.validation_steps == 0:
+                        '''
                         image_logs = log_validation(
                             vae,
                             text_encoder,
@@ -1162,6 +1163,7 @@ def main(args):
                             weight_dtype,
                             global_step,
                         )
+                        '''
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
@@ -1179,6 +1181,7 @@ def main(args):
         # Run a final round of validation.
         image_logs = None
         if args.validation_prompt is not None:
+            '''
             image_logs = log_validation(
                 vae=vae,
                 text_encoder=text_encoder,
@@ -1191,6 +1194,7 @@ def main(args):
                 step=global_step,
                 is_final_validation=True,
             )
+            '''
 
         if args.push_to_hub:
             save_model_card(
