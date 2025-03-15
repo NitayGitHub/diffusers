@@ -841,9 +841,6 @@ def main(args):
         lora_weights = load_file(args.lora_path)
         set_peft_model_state_dict(unet, lora_weights)
     
-        controlnet.add_adapter(unet_lora_config)
-        set_peft_model_state_dict(controlnet, lora_weights)
-    
     # Taken from [Sayak Paul's Diffusers PR #6511](https://github.com/huggingface/diffusers/pull/6511/files)
     def unwrap_model(model):
         model = accelerator.unwrap_model(model)
