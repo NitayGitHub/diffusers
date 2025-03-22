@@ -268,16 +268,10 @@ def parse_args(input_args=None):
         " If not specified controlnet weights are initialized from unet.",
     )
     parser.add_argument(
-        "--lora_path",
+        "--unet_weights",
         type=str,
         default=None,
-        help="Path to the LoRA weights file (e.g., ./out/pytorch_lora_weights.safetensors)"
-    )
-    parser.add_argument(
-        "--lora_rank",
-        type=int,
-        default=62,
-        help="LoRA rank"
+        help="Path to the weights folder with config and safetensors files (e.g., ./out/pytorch_lora_weights.safetensors)"
     )
     parser.add_argument(
         "--revision",
@@ -819,9 +813,12 @@ def main(args):
     vae = AutoencoderKL.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant
     )
-    unet = UNet2DConditionModel.from_pretrained(
-    args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
-    )
+    if args.unet_weights:
+        unet = UNet2DConditionModel.from_pretrained(args.unet_weights, torch_dtype=torch.float16)
+    else:
+        unet = UNet2DConditionModel.from_pretrained(
+        args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
+        )
     
     # Initialize ControlNet first, then add LoRA
     if args.controlnet_model_name_or_path:
@@ -830,17 +827,6 @@ def main(args):
     else:
         logger.info("Initializing controlnet weights from unet")
         controlnet = ControlNetModel.from_unet(unet)
-    
-    if args.lora_path:
-        unet_lora_config = LoraConfig(
-            r=args.lora_rank,
-            lora_alpha=args.lora_rank,
-            init_lora_weights="gaussian",
-            target_modules=["to_k", "to_q", "to_v", "to_out.0"],
-        )
-        unet.add_adapter(unet_lora_config)
-        lora_weights = load_file(args.lora_path)
-        set_peft_model_state_dict(unet, lora_weights)
     
     # Taken from [Sayak Paul's Diffusers PR #6511](https://github.com/huggingface/diffusers/pull/6511/files)
     def unwrap_model(model):
