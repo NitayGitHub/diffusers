@@ -1078,6 +1078,15 @@ def main():
             logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
 
+            for tracker in accelerator.trackers:
+            if tracker.name == "wandb":
+                tracker.log(
+                    {
+                        "step_loss": logs["step_loss"],
+                        "learning_rate": logs["lr"]
+                    }
+                )
+
             if global_step >= args.max_train_steps:
                 break
 
