@@ -1046,7 +1046,7 @@ def main():
                         ema_unet.to(device="cpu", non_blocking=True)
                 progress_bar.update(1)
                 global_step += 1
-                accelerator.log({"train_loss": train_loss}, step=global_step)
+                accelerator.log({"train_loss": train_loss, "lr": lr_scheduler.get_last_lr()[0]}, step=global_step)
                 train_loss = 0.0
 
                 if global_step % args.checkpointing_steps == 0:
@@ -1077,16 +1077,6 @@ def main():
 
             logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
-
-            for tracker in accelerator.trackers:
-                if tracker.name == "wandb":
-                    tracker.log(
-                        {
-                            "step_loss": logs["step_loss"],
-                            "learning_rate": logs["lr"]
-                        }, 
-                        step=global_step
-                    )
 
             if global_step >= args.max_train_steps:
                 break
