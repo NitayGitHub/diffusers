@@ -1084,7 +1084,8 @@ def main():
                         {
                             "step_loss": logs["step_loss"],
                             "learning_rate": logs["lr"]
-                        }
+                        }, 
+                        step=global_step
                     )
 
             if global_step >= args.max_train_steps:
