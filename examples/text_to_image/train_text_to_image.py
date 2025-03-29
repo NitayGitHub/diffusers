@@ -941,7 +941,7 @@ def main():
     progress_bar = tqdm(
         range(0, args.max_train_steps),
         initial=initial_global_step,
-        desc="Steps",
+        desc=f"Steps {len(train_dataloader)}",
         # Only show the progress bar once on each machine.
         disable=not accelerator.is_local_main_process,
     )
