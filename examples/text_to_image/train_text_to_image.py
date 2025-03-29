@@ -1076,6 +1076,12 @@ def main():
                         logger.info(f"Saved state to {save_path}")
 
             logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
+            logs = {
+                "step_loss": loss.detach().item(),
+                "lr": lr_scheduler.get_last_lr()[0],
+                "epoch": epoch,
+                "step_position": f"{step}/{len(train_dataloader)}"
+            }
             progress_bar.set_postfix(**logs)
 
             if global_step >= args.max_train_steps:
