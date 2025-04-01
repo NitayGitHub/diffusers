@@ -481,6 +481,15 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--resume_unet",
+        type=str,
+        default=None,
+        help=(
+            "Whether training should be resumed from a previous checkpoint. Use a path saved by"
+            ' `--checkpointing_steps`, or `"latest"` to automatically select the last available checkpoint.'
+        ),
+    )
+    parser.add_argument(
         "--enable_xformers_memory_efficient_attention", action="store_true", help="Whether or not to use xformers."
     )
     parser.add_argument("--noise_offset", type=float, default=0, help="The scale of noise offset.")
@@ -612,9 +621,12 @@ def main():
             args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant
         )
 
-    unet = UNet2DConditionModel.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="unet", revision=args.non_ema_revision
-    )
+    if args.resume_unet:
+        unet = UNet2DConditionModel.from_pretrained(args.resume_unet)
+    else:
+        unet = UNet2DConditionModel.from_pretrained(
+            args.pretrained_model_name_or_path, subfolder="unet", revision=args.non_ema_revision
+        )
     
     # Freeze vae and text_encoder and set unet to trainable
     vae.requires_grad_(False)
@@ -623,9 +635,12 @@ def main():
 
     # Create EMA for the unet.
     if args.use_ema:
-        ema_unet = UNet2DConditionModel.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
-        )
+        if args.resume_unet:
+            ema_unet = UNet2DConditionModel.from_pretrained(args.resume_unet)
+        else:
+            ema_unet = UNet2DConditionModel.from_pretrained(
+                args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
+            )
         ema_unet = EMAModel(
             ema_unet.parameters(),
             model_cls=UNet2DConditionModel,
