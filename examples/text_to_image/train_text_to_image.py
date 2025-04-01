@@ -481,15 +481,6 @@ def parse_args():
         ),
     )
     parser.add_argument(
-        "--resume_unet",
-        type=str,
-        default=None,
-        help=(
-            "Whether training should be resumed from a previous checkpoint. Use a path saved by"
-            ' `--checkpointing_steps`, or `"latest"` to automatically select the last available checkpoint.'
-        ),
-    )
-    parser.add_argument(
         "--enable_xformers_memory_efficient_attention", action="store_true", help="Whether or not to use xformers."
     )
     parser.add_argument("--noise_offset", type=float, default=0, help="The scale of noise offset.")
@@ -625,9 +616,6 @@ def main():
         args.pretrained_model_name_or_path, subfolder="unet", revision=args.non_ema_revision
     )
     
-    if args.resume_from_unet:
-    
-
     # Freeze vae and text_encoder and set unet to trainable
     vae.requires_grad_(False)
     text_encoder.requires_grad_(False)
@@ -923,22 +911,10 @@ def main():
     first_epoch = 0
 
     # Potentially load in the weights and states from a previous save
-    if args.resume_from_unet:
-
-        if args.resume_from_unet is None:
-            accelerator.print(
-                f"Checkpoint '{args.resume_from_unet}' does not exist. Starting a new training run."
-            )
-            args.resume_from_unet = None
-            initial_global_step = 0
-        else:
-            accelerator.print(f"Resuming from checkpoint {path}")
-            accelerator.load_state(args.resume_from_unet)
-            global_step = int(path.split("-")[1])
-
-            initial_global_step = global_step
-            first_epoch = global_step // num_update_steps_per_epoch
-
+    if args.resume_from_checkpoint:
+        accelerator.print(f"Resuming from checkpoint {args.resume_from_checkpoint}")
+        accelerator.load_state(args.resume_from_checkpoint)
+        initial_global_step = 0
     else:
         initial_global_step = 0
 
