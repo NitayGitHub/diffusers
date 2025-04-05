@@ -985,7 +985,7 @@ def main():
                     noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
                 # Get the image embedding for conditioning
-                mask_inputs = {"pixel_values": batch["conditioning_image"].to(device=device, dtype=weight_dtype)}
+                mask_inputs = {"pixel_values": batch["mask_values"].to(device=device, dtype=weight_dtype)}
                 encoder_hidden_states = image_encoder(**mask_inputs, return_dict=False)[0]
 
                 # Get the target for loss depending on the prediction type
