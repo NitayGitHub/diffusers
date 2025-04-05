@@ -39,7 +39,7 @@ from huggingface_hub import create_repo, upload_folder
 from packaging import version
 from torchvision import transforms
 from tqdm.auto import tqdm
-from transformers import CLIPTextModel, CLIPTokenizer
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPVisionModel
 from transformers.utils import ContextManagers
 
 import diffusers
@@ -614,6 +614,7 @@ def main():
     # `from_pretrained` So CLIPTextModel and AutoencoderKL will not enjoy the parameter sharding
     # across multiple gpus and only UNet2DConditionModel will get ZeRO sharded.
     with ContextManagers(deepspeed_zero_init_disabled_context_manager()):
+        image_encoder = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32")
         text_encoder = CLIPTextModel.from_pretrained(
             args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision, variant=args.variant
         )
@@ -628,9 +629,10 @@ def main():
             args.pretrained_model_name_or_path, subfolder="unet", revision=args.non_ema_revision
         )
     
-    # Freeze vae and text_encoder and set unet to trainable
+    # Freeze vae and image_encoder and set unet to trainable
     vae.requires_grad_(False)
-    text_encoder.requires_grad_(False)
+    image_processor.requires_grad_(False)
+    image_encoder.requires_grad_(False)
     unet.train()
 
     # Create EMA for the unet.
@@ -815,9 +817,19 @@ def main():
         ]
     )
 
+    mask_transforms = transforms.Compose(
+        [
+            transforms.Resize(256, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5]),
+        ]
+    )
+
     def preprocess_train(examples):
         images = [image.convert("RGB") for image in examples[image_column]]
         examples["pixel_values"] = [train_transforms(image) for image in images]
+        conditioning_images = [image.convert("RGB") for image in examples["conditioning_images"]]
+        examples["mask_values"] = [mask_transforms(image) for image in conditioning_images]
         examples["input_ids"] = tokenize_captions(examples)
         return examples
 
@@ -830,8 +842,10 @@ def main():
     def collate_fn(examples):
         pixel_values = torch.stack([example["pixel_values"] for example in examples])
         pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
+        mask_values = torch.stack([example["mask_values"] for example in examples])
+        mask_values = mask_values.to(memory_format=torch.contiguous_format).float()
         input_ids = torch.stack([example["input_ids"] for example in examples])
-        return {"pixel_values": pixel_values, "input_ids": input_ids}
+        return {"pixel_values": pixel_values, "mask_values": mask_values, "input_ids": input_ids}
 
     # DataLoaders creation:
     train_dataloader = torch.utils.data.DataLoader(
@@ -872,7 +886,7 @@ def main():
         else:
             ema_unet.to(accelerator.device)
 
-    # For mixed precision training we cast all non-trainable weights (vae, non-lora text_encoder and non-lora unet) to half-precision
+    # For mixed precision training we cast all non-trainable weights (vae, non-lora image_encoder and non-lora unet) to half-precision
     # as these weights are only used for inference, keeping weights in full precision is not required.
     weight_dtype = torch.float32
     if accelerator.mixed_precision == "fp16":
@@ -883,7 +897,7 @@ def main():
         args.mixed_precision = accelerator.mixed_precision
 
     # Move text_encode and vae to gpu and cast to weight_dtype
-    text_encoder.to(accelerator.device, dtype=weight_dtype)
+    image_encoder.to(accelerator.device, dtype=weight_dtype)
     vae.to(accelerator.device, dtype=weight_dtype)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
@@ -970,8 +984,9 @@ def main():
                 else:
                     noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
-                # Get the text embedding for conditioning
-                encoder_hidden_states = text_encoder(batch["input_ids"], return_dict=False)[0]
+                # Get the image embedding for conditioning
+                mask_inputs = {"pixel_values": batch["conditioning_image"].to(device=device, dtype=weight_dtype)}}
+                encoder_hidden_states = image_encoder(**mask_inputs, return_dict=False)[0]
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
@@ -1079,7 +1094,7 @@ def main():
         if accelerator.is_main_process:
             if args.validation_prompts is not None and epoch % args.validation_epochs == 0:
                 if args.use_ema:
-                    # Store the UNet parameters temporarily and load the EMA parameters to perform inference.
+                    # Store the UNet parameters temporarily and load the EMA parameters for inference.
                     ema_unet.store(unet.parameters())
                     ema_unet.copy_to(unet.parameters())
                 log_validation(
