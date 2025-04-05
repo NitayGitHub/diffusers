@@ -1085,7 +1085,7 @@ def main():
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
-            logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": epoch}
+            logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
 
             if global_step >= args.max_train_steps:
