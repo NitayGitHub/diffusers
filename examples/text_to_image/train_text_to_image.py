@@ -819,7 +819,7 @@ def main():
 
     mask_transforms = transforms.Compose(
         [
-            transforms.Resize(256, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.Resize(224, interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.ToTensor(),
             transforms.Normalize([0.5], [0.5]),
         ]
