@@ -631,7 +631,7 @@ def main():
     
     # Freeze vae and image_encoder and set unet to trainable
     vae.requires_grad_(False)
-    image_processor.requires_grad_(False)
+    text_encoder.requires_grad_(False)
     image_encoder.requires_grad_(False)
     unet.train()
 
