@@ -39,7 +39,7 @@ from huggingface_hub import create_repo, upload_folder
 from packaging import version
 from torchvision import transforms
 from tqdm.auto import tqdm
-from transformers import CLIPTextModel, CLIPTokenizer, CLIPVisionModel
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPVisionModel, CLIPImageProcessor
 from transformers.utils import ContextManagers
 
 import diffusers
@@ -615,6 +615,7 @@ def main():
     # across multiple gpus and only UNet2DConditionModel will get ZeRO sharded.
     with ContextManagers(deepspeed_zero_init_disabled_context_manager()):
         image_encoder = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32")
+        image_processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-base-patch32")
         text_encoder = CLIPTextModel.from_pretrained(
             args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision, variant=args.variant
         )
@@ -632,6 +633,7 @@ def main():
     # Freeze vae and image_encoder and set unet to trainable
     vae.requires_grad_(False)
     text_encoder.requires_grad_(False)
+    image_processor.requires_grad_(False)
     image_encoder.requires_grad_(False)
     unet.train()
 
@@ -817,19 +819,14 @@ def main():
         ]
     )
 
-    mask_transforms = transforms.Compose(
-        [
-            transforms.Resize(224, interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.ToTensor(),
-            transforms.Normalize([0.5], [0.5]),
-        ]
-    )
-
     def preprocess_train(examples):
         images = [image.convert("RGB") for image in examples[image_column]]
         examples["pixel_values"] = [train_transforms(image) for image in images]
+
         conditioning_images = [image.convert("RGB") for image in examples["conditioning_image"]]
-        examples["mask_values"] = [mask_transforms(image) for image in conditioning_images]
+        processed = image_processor(conditioning_images, return_tensors="pt")
+        examples["mask_values"] = list(processed["pixel_values"])
+        
         examples["input_ids"] = tokenize_captions(examples)
         return examples
 
@@ -985,7 +982,8 @@ def main():
                     noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
                 # Get the image embedding for conditioning
-                mask_inputs = {"pixel_values": batch["mask_values"].to(device=latents.device, dtype=weight_dtype)}
+                mask_pixel_values = batch["mask_values"].to(device=latents.device, dtype=weight_dtype)
+                mask_inputs = {"pixel_values": mask_pixel_values}
                 encoder_hidden_states = image_encoder(**mask_inputs, return_dict=False)[0]
 
                 # Get the target for loss depending on the prediction type
