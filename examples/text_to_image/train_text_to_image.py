@@ -39,7 +39,7 @@ from huggingface_hub import create_repo, upload_folder
 from packaging import version
 from torchvision import transforms
 from tqdm.auto import tqdm
-from transformers import CLIPTextModel, CLIPTokenizer, CLIPVisionModel, CLIPImageProcessor
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPProcessor
 from transformers.utils import ContextManagers
 
 import diffusers
@@ -614,8 +614,8 @@ def main():
     # `from_pretrained` So CLIPTextModel and AutoencoderKL will not enjoy the parameter sharding
     # across multiple gpus and only UNet2DConditionModel will get ZeRO sharded.
     with ContextManagers(deepspeed_zero_init_disabled_context_manager()):
-        image_encoder = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32")
-        image_processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        image_encoder = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
+        image_processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
         text_encoder = CLIPTextModel.from_pretrained(
             args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision, variant=args.variant
         )
@@ -982,8 +982,7 @@ def main():
 
                 # Get the image embedding for conditioning
                 mask_pixel_values = batch["mask_values"].to(device=latents.device, dtype=weight_dtype)
-                mask_inputs = {"pixel_values": mask_pixel_values}
-                encoder_hidden_states = image_encoder(**mask_inputs, return_dict=False)[0]
+                encoder_hidden_states = image_encoder.get_image_features(pixel_values=mask_pixel_values)
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
