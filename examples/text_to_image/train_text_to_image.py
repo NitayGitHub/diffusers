@@ -983,6 +983,7 @@ def main():
                 # Get the image embedding for conditioning
                 mask_pixel_values = batch["mask_values"].to(device=latents.device, dtype=weight_dtype)
                 encoder_hidden_states = image_encoder.get_image_features(pixel_values=mask_pixel_values)
+                encoder_hidden_states = encoder_hidden_states.unsqueeze(1)
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
