@@ -823,7 +823,7 @@ def main():
         examples["pixel_values"] = [train_transforms(image) for image in images]
 
         conditioning_images = [image.convert("RGB") for image in examples["conditioning_image"]]
-        processed = image_processor(conditioning_images, return_tensors="pt")
+        processed = image_processor(images=conditioning_images, return_tensors="pt")
         examples["mask_values"] = list(processed["pixel_values"])
         
         examples["input_ids"] = tokenize_captions(examples)
