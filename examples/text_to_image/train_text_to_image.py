@@ -906,11 +906,13 @@ def main():
         tracker_config.pop("validation_prompts")
         accelerator.init_trackers(args.tracker_project_name, tracker_config)
 
+    '''
     if accelerator.is_main_process and args.report_to == "wandb":
         wandb.define_metric("average_epoch_loss", step_metric="epoch")
         wandb.define_metric("epoch")
         wandb.define_metric("train_loss", step_metric="global_step")
         wandb.define_metric("global_step")
+    '''
 
     # Function for unwrapping if model was compiled with `torch.compile`.
     def unwrap_model(model):
@@ -947,12 +949,16 @@ def main():
         disable=not accelerator.is_local_main_process,
     )
 
+    dataloader_length = len(train_dataloader)
+    thresholds = [math.ceil(dataloader_length * (i / 4)) for i in range(1, 5)]
+    threshold_idx = 0
+    train_loss = 0.0
+    steps_count = 0
+
     for epoch in range(first_epoch, args.num_train_epochs):
-        train_loss = 0.0
-        
-        total_loss = 0.0
-        total_steps = 0
-        
+        threshold_idx = 0
+        steps_count = 0
+
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(unet):
                 # Convert images to latent space
@@ -1031,10 +1037,8 @@ def main():
 
                 # Gather the losses across all processes for logging (if we use distributed training).
                 avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
-                train_loss += avg_loss.item() / args.gradient_accumulation_steps
-                
-                total_loss += avg_loss.item()
-                total_steps += 1
+                train_loss += avg_loss.item()
+                steps_count += 1
 
                 # Backpropagate
                 accelerator.backward(loss)
@@ -1054,8 +1058,17 @@ def main():
                         ema_unet.to(device="cpu", non_blocking=True)
                 progress_bar.update(1)
                 global_step += 1
-                accelerator.log({"train_loss": train_loss, "lr": lr_scheduler.get_last_lr()[0], "global_step": global_step})
-                train_loss = 0.0
+                
+                if threshold_idx < len(thresholds) and steps_count == thresholds[threshold_idx]:
+                    previous_threshold = thresholds[threshold_idx - 1] if threshold_idx > 0 else 0
+                    steps_in_interval = thresholds[threshold_idx] - previous_threshold
+                    avg_train_loss = train_loss / steps_in_interval
+                    accelerator.log(
+                        {"train_loss": avg_train_loss, "lr": lr_scheduler.get_last_lr()[0]},
+                        step=global_step
+                    )
+                    train_loss = 0.0
+                    threshold_idx += 1
 
                 if global_step % args.checkpointing_steps == 0:
                     if accelerator.is_main_process:
@@ -1083,14 +1096,12 @@ def main():
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
-            logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
-            progress_bar.set_postfix(**logs)
+            if threshold_idx < len(thresholds) and steps_count == thresholds[threshold_idx]:
+                logs = {"steps_loss": avg_train_loss}
+                progress_bar.set_postfix(**logs)
 
             if global_step >= args.max_train_steps:
                 break
-
-        average_epoch_loss = total_loss / total_steps
-        accelerator.log({"average_epoch_loss": average_epoch_loss, "epoch": epoch})
 
         if accelerator.is_main_process:
             if args.validation_prompts is not None and epoch % args.validation_epochs == 0:
