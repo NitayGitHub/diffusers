@@ -1054,7 +1054,7 @@ def main():
                         ema_unet.to(device="cpu", non_blocking=True)
                 progress_bar.update(1)
                 global_step += 1
-                accelerator.log({"train_loss": train_loss, "lr": lr_scheduler.get_last_lr()[0]}, "global_step": global_step})
+                accelerator.log({"train_loss": train_loss, "lr": lr_scheduler.get_last_lr()[0], "global_step": global_step})
                 train_loss = 0.0
 
                 if global_step % args.checkpointing_steps == 0:
