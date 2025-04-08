@@ -1067,6 +1067,8 @@ def main():
                         {"train_loss": avg_train_loss, "lr": lr_scheduler.get_last_lr()[0]},
                         step=global_step
                     )
+                    logs = {"steps_loss": avg_train_loss}
+                    progress_bar.set_postfix(**logs)
                     train_loss = 0.0
                     threshold_idx += 1
 
@@ -1095,10 +1097,6 @@ def main():
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
-
-            if threshold_idx < len(thresholds) and steps_count == thresholds[threshold_idx]:
-                logs = {"steps_loss": avg_train_loss}
-                progress_bar.set_postfix(**logs)
 
             if global_step >= args.max_train_steps:
                 break
