@@ -1058,19 +1058,6 @@ def main():
                         ema_unet.to(device="cpu", non_blocking=True)
                 progress_bar.update(1)
                 global_step += 1
-                
-                if threshold_idx < len(thresholds) and steps_count == thresholds[threshold_idx]:
-                    previous_threshold = thresholds[threshold_idx - 1] if threshold_idx > 0 else 0
-                    steps_in_interval = thresholds[threshold_idx] - previous_threshold
-                    avg_train_loss = train_loss / steps_in_interval
-                    accelerator.log(
-                        {"train_loss": avg_train_loss, "lr": lr_scheduler.get_last_lr()[0]},
-                        step=global_step
-                    )
-                    logs = {"steps_loss": avg_train_loss}
-                    progress_bar.set_postfix(**logs)
-                    train_loss = 0.0
-                    threshold_idx += 1
 
                 if global_step % args.checkpointing_steps == 0:
                     if accelerator.is_main_process:
@@ -1097,6 +1084,19 @@ def main():
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
+
+            if threshold_idx < len(thresholds) and steps_count == thresholds[threshold_idx]:
+                    previous_threshold = thresholds[threshold_idx - 1] if threshold_idx > 0 else 0
+                    steps_in_interval = thresholds[threshold_idx] - previous_threshold
+                    avg_train_loss = train_loss / steps_in_interval
+                    accelerator.log(
+                        {"train_loss": avg_train_loss, "lr": lr_scheduler.get_last_lr()[0]},
+                        step=global_step
+                    )
+                    logs = {"steps_loss": avg_train_loss}
+                    progress_bar.set_postfix(**logs)
+                    train_loss = 0.0
+                    threshold_idx += 1
 
             if global_step >= args.max_train_steps:
                 break
