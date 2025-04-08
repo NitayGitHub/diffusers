@@ -1054,7 +1054,7 @@ def main():
                         ema_unet.to(device="cpu", non_blocking=True)
                 progress_bar.update(1)
                 global_step += 1
-                accelerator.log({"train_loss": train_loss, "lr": lr_scheduler.get_last_lr()[0]}, step=global_step)
+                accelerator.log({"train_loss": train_loss, "lr": lr_scheduler.get_last_lr()[0]}, "global_step": global_step})
                 train_loss = 0.0
 
                 if global_step % args.checkpointing_steps == 0:
@@ -1090,7 +1090,7 @@ def main():
                 break
 
         average_epoch_loss = total_loss / total_steps
-        accelerator.log({"average_epoch_loss": average_epoch_loss}, step=epoch)
+        accelerator.log({"average_epoch_loss": average_epoch_loss, "epoch": epoch})
 
         if accelerator.is_main_process:
             if args.validation_prompts is not None and epoch % args.validation_epochs == 0:
