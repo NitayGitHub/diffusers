@@ -553,6 +553,12 @@ def main():
         log_with=args.report_to,
         project_config=accelerator_project_config,
     )
+    
+    if accelerator.is_main_process and args.report_to == "wandb":
+        wandb.define_metric("average_epoch_loss", step_metric="epoch")
+        wandb.define_metric("epoch")
+        wandb.define_metric("train_loss", step_metric="global_step")
+        wandb.define_metric("global_step")
 
     # Disable AMP for MPS.
     if torch.backends.mps.is_available():
