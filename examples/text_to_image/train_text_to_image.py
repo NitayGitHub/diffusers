@@ -943,6 +943,10 @@ def main():
 
     for epoch in range(first_epoch, args.num_train_epochs):
         train_loss = 0.0
+        
+        total_loss = 0.0
+        total_steps = 0
+        
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(unet):
                 # Convert images to latent space
@@ -1022,6 +1026,9 @@ def main():
                 # Gather the losses across all processes for logging (if we use distributed training).
                 avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
                 train_loss += avg_loss.item() / args.gradient_accumulation_steps
+                
+                total_loss += avg_loss.item()
+                total_steps += 1
 
                 # Backpropagate
                 accelerator.backward(loss)
@@ -1075,6 +1082,9 @@ def main():
 
             if global_step >= args.max_train_steps:
                 break
+
+        average_epoch_loss = total_loss / total_steps
+        accelerator.log({"average_epoch_loss": average_epoch_loss}, step=epoch)
 
         if accelerator.is_main_process:
             if args.validation_prompts is not None and epoch % args.validation_epochs == 0:
