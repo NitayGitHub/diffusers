@@ -814,7 +814,7 @@ def main(args):
         args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant
     )
     if args.unet_weights:
-        unet = UNet2DConditionModel.from_pretrained(args.unet_weights, torch_dtype=torch.float16)
+        unet = UNet2DConditionModel.from_pretrained(args.unet_weights)
     else:
         unet = UNet2DConditionModel.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
@@ -1150,7 +1150,6 @@ def main(args):
                         )
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
-            progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
 
             if global_step >= args.max_train_steps:
