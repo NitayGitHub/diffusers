@@ -607,9 +607,6 @@ def main():
     with ContextManagers(deepspeed_zero_init_disabled_context_manager()):
         image_encoder = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
         image_processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
-        text_encoder = CLIPTextModel.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision, variant=args.variant
-        )
         vae = AutoencoderKL.from_pretrained(
             args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant
         )
@@ -623,7 +620,6 @@ def main():
     
     # Freeze vae and text_encoder and set unet to trainable
     vae.requires_grad_(False)
-    text_encoder.requires_grad_(False)
     image_encoder.requires_grad_(False)
     unet.train()
 
@@ -816,7 +812,6 @@ def main():
         processed = image_processor(images=images, return_tensors="pt")
         examples["cond_values"] = list(processed["pixel_values"])
 
-        examples["input_ids"] = tokenize_captions(examples)
         return examples
 
     with accelerator.main_process_first():
@@ -832,8 +827,7 @@ def main():
         cond_values = torch.stack([example["cond_values"] for example in examples])
         cond_values = cond_values.to(memory_format=torch.contiguous_format).float()
         
-        input_ids = torch.stack([example["input_ids"] for example in examples])
-        return {"pixel_values": pixel_values, "cond_values": cond_values, "input_ids": input_ids}
+        return {"pixel_values": pixel_values, "cond_values": cond_values}
 
     # DataLoaders creation:
     train_dataloader = torch.utils.data.DataLoader(
@@ -874,7 +868,7 @@ def main():
         else:
             ema_unet.to(accelerator.device)
 
-    # For mixed precision training we cast all non-trainable weights (vae, non-lora text_encoder and non-lora unet) to half-precision
+    # For mixed precision training we cast all non-trainable weights (vae, non-lora  and non-lora unet) to half-precision
     # as these weights are only used for inference, keeping weights in full precision is not required.
     weight_dtype = torch.float32
     if accelerator.mixed_precision == "fp16":
@@ -885,7 +879,6 @@ def main():
         args.mixed_precision = accelerator.mixed_precision
 
     # Move text_encode and vae to gpu and cast to weight_dtype
-    text_encoder.to(accelerator.device, dtype=weight_dtype)
     image_encoder.to(accelerator.device, dtype=weight_dtype)
     vae.to(accelerator.device, dtype=weight_dtype)
 
@@ -1105,15 +1098,7 @@ def main():
         if args.use_ema:
             ema_unet.copy_to(unet.parameters())
 
-        pipeline = StableDiffusionPipeline.from_pretrained(
-            args.pretrained_model_name_or_path,
-            text_encoder=text_encoder,
-            vae=vae,
-            unet=unet,
-            revision=args.revision,
-            variant=args.variant,
-        )
-        pipeline.save_pretrained(args.output_dir)
+        unet.save_pretrained(args.output_dir)
 
         # Run a final round of inference.
         images = []
