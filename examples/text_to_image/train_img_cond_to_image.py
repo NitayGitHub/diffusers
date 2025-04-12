@@ -534,12 +534,6 @@ def main():
             " Please use `huggingface-cli login` to authenticate with the Hub."
         )
 
-    if args.non_ema_revision is not None:
-        deprecate(
-            "non_ema_revision!=None",
-            "0.15.0",
-            "Downloading 'non_ema' weights from revision branches of the Hub is deprecated. Please make sure to use `--variant=non_ema` instead."
-        )
     logging_dir = os.path.join(args.output_dir, args.logging_dir)
 
     accelerator_project_config = ProjectConfiguration(project_dir=args.output_dir, logging_dir=logging_dir)
