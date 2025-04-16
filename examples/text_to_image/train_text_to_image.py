@@ -805,19 +805,9 @@ def main():
         return inputs.input_ids
 
     # Preprocessing the datasets.
-    train_transforms = transforms.Compose(
-        [
-            transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.CenterCrop(args.resolution) if args.center_crop else transforms.RandomCrop(args.resolution),
-            transforms.RandomHorizontalFlip() if args.random_flip else transforms.Lambda(lambda x: x),
-            transforms.ToTensor(),
-            transforms.Normalize([0.5], [0.5]),
-        ]
-    )
     
     transform_list = [
-        transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR),
-        transforms.CenterCrop(args.resolution) if args.center_crop else transforms.RandomCrop(args.resolution),
+        transforms.Resize((args.resolution, args.resolution), interpolation=transforms.InterpolationMode.BILINEAR),
     ]
     
     if args.random_flip:
