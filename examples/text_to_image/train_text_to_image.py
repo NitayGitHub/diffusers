@@ -814,6 +814,22 @@ def main():
             transforms.Normalize([0.5], [0.5]),
         ]
     )
+    
+    transform_list = [
+        transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR),
+        transforms.CenterCrop(args.resolution) if args.center_crop else transforms.RandomCrop(args.resolution),
+    ]
+    
+    if args.random_flip:
+        transform_list.append(transforms.RandomHorizontalFlip())
+        transform_list.append(transforms.RandomAffine(degrees=30, translate=(0.125, 0.125)))
+    
+    transform_list.extend([
+        transforms.ToTensor(),
+        transforms.Normalize([0.5], [0.5]),
+    ])
+    
+    train_transforms = transforms.Compose(transform_list)
 
     def preprocess_train(examples):
         images = [image.convert("RGB") for image in examples[image_column]]
