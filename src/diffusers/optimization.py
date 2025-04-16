@@ -53,18 +53,33 @@ def get_constant_schedule(optimizer: Optimizer, last_epoch: int = -1) -> LambdaL
     """
     return LambdaLR(optimizer, lambda _: 1, last_epoch=last_epoch)
 
-def get_one_cycle(optimizer: Optimizer, num_training_steps: int, pct_start: float = 0.3, div_factor: float = 25.0, final_div_factor: float = 1e4, last_epoch: int = -1) -> LambdaLR:
+def get_one_cycle(
+    optimizer: Optimizer,
+    num_training_steps: int,
+    pct_start: float = 0.3,
+    div_factor: float = 25.0,
+    final_div_factor: float = 1e4,
+    last_epoch: int = -1
+) -> LambdaLR:
+    
     initial_lr = optimizer.param_groups[0]['lr']
     max_lr = initial_lr * 10
     min_lr = max_lr / div_factor
     final_lr = max_lr / final_div_factor
 
+    warmup_steps = int(num_training_steps * pct_start)
+    decay_steps = num_training_steps - warmup_steps
+
     def lr_lambda(step: int):
-        if step < pct_start * num_training_steps:
-            return (min_lr + (max_lr - min_lr) * step / (pct_start * num_training_steps)) / initial_lr
+        if step < warmup_steps:
+            # Cosine annealing from min_lr to max_lr
+            cosine_progress = step / warmup_steps
+            lr = min_lr + (max_lr - min_lr) * (1 - math.cos(math.pi * cosine_progress)) / 2
         else:
-            decay_steps = num_training_steps - pct_start * num_training_steps
-            return (max_lr - (max_lr - final_lr) * (step - pct_start * num_training_steps) / decay_steps) / initial_lr
+            # Cosine annealing from max_lr to final_lr
+            cosine_progress = (step - warmup_steps) / decay_steps
+            lr = final_lr + (max_lr - final_lr) * (1 + math.cos(math.pi * cosine_progress)) / 2
+        return lr / initial_lr
 
     return LambdaLR(optimizer, lr_lambda, last_epoch=last_epoch)
 
