@@ -35,6 +35,7 @@ class SchedulerType(Enum):
     CONSTANT = "constant"
     CONSTANT_WITH_WARMUP = "constant_with_warmup"
     PIECEWISE_CONSTANT = "piecewise_constant"
+    ONECYCLE = "onecycle"
 
 
 def get_constant_schedule(optimizer: Optimizer, last_epoch: int = -1) -> LambdaLR:
@@ -51,6 +52,21 @@ def get_constant_schedule(optimizer: Optimizer, last_epoch: int = -1) -> LambdaL
         `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.
     """
     return LambdaLR(optimizer, lambda _: 1, last_epoch=last_epoch)
+
+def get_one_cycle(optimizer: Optimizer, num_training_steps: int, pct_start: float = 0.3, div_factor: float = 25.0, final_div_factor: float = 1e4, last_epoch: int = -1) -> LambdaLR:
+    initial_lr = optimizer.param_groups[0]['lr']
+    max_lr = initial_lr * 10
+    min_lr = max_lr / div_factor
+    final_lr = max_lr / final_div_factor
+
+    def lr_lambda(step: int):
+        if step < pct_start * num_training_steps:
+            return (min_lr + (max_lr - min_lr) * step / (pct_start * num_training_steps)) / initial_lr
+        else:
+            decay_steps = num_training_steps - pct_start * num_training_steps
+            return (max_lr - (max_lr - final_lr) * (step - pct_start * num_training_steps) / decay_steps) / initial_lr
+
+    return LambdaLR(optimizer, lr_lambda, last_epoch=last_epoch)
 
 
 def get_constant_schedule_with_warmup(optimizer: Optimizer, num_warmup_steps: int, last_epoch: int = -1) -> LambdaLR:
@@ -283,6 +299,7 @@ TYPE_TO_SCHEDULER_FUNCTION = {
     SchedulerType.CONSTANT: get_constant_schedule,
     SchedulerType.CONSTANT_WITH_WARMUP: get_constant_schedule_with_warmup,
     SchedulerType.PIECEWISE_CONSTANT: get_piecewise_constant_schedule,
+    SchedulerType.ONECYCLE: get_one_cycle
 }
 
 
@@ -323,6 +340,9 @@ def get_scheduler(
     schedule_func = TYPE_TO_SCHEDULER_FUNCTION[name]
     if name == SchedulerType.CONSTANT:
         return schedule_func(optimizer, last_epoch=last_epoch)
+
+    if name == SchedulerType.ONECYCLE:
+        return schedule_func(optimizer, num_training_steps, last_epoch=last_epoch)
 
     if name == SchedulerType.PIECEWISE_CONSTANT:
         return schedule_func(optimizer, step_rules=step_rules, last_epoch=last_epoch)
