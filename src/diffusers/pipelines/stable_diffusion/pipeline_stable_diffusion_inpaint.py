@@ -883,6 +883,7 @@ class StableDiffusionInpaintPipeline(
         prompt: Union[str, List[str]] = None,
         image: PipelineImageInput = None,
         mask_image: PipelineImageInput = None,
+        structural_image: PipelineImageInput = None,
         masked_image_latents: torch.Tensor = None,
         height: Optional[int] = None,
         width: Optional[int] = None,
@@ -1198,11 +1199,18 @@ class StableDiffusionInpaintPipeline(
         mask_condition = self.mask_processor.preprocess(
             mask_image, height=height, width=width, resize_mode=resize_mode, crops_coords=crops_coords
         )
+        if structural_image:
+            structural_condition = self.mask_processor.preprocess(
+                structural_image, height=height, width=width, resize_mode=resize_mode, crops_coords=crops_coords
+            )
 
         if masked_image_latents is None:
             masked_image = init_image * (mask_condition < 0.5)
         else:
             masked_image = masked_image_latents
+
+        if structural_image:
+            mask_condition = structural_condition
 
         mask, masked_image_latents = self.prepare_mask_latents(
             mask_condition,
